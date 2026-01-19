@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Organisation model (single-org context for v1)
+model Organisation {
+  id          String       @id @default(uuid())
+  name        String
+  assessments Assessment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+// User model for authentication
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  name          String?
+  password      String?
+  image         String?
+  assessments   Assessment[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+}
+
+// NextAuth Account model
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Assessment model - core entity
+model Assessment {
+  id               String   @id @default(uuid())
+  organisationId   String
+  assessmentDate   DateTime @default(now())
+  completedBy      String
+  completedByEmail String
+  userId           String?
+
+  // Dimension Scores (0-100 each)
+  policyScore         Int @default(0)
+  riskManagementScore Int @default(0)
+  rolesScore          Int @default(0)
+  trainingScore       Int @default(0)
+  monitoringScore     Int @default(0)
+  vendorScore         Int @default(0)
+  improvementScore    Int @default(0)
+
+  // Calculated
+  overallScore   Int    @default(0)
+  maturityLevel  Int    @default(1)
+
+  // Metadata
+  status    String @default("Draft") // Draft, Completed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organisation Organisation         @relation(fields: [organisationId], references: [id])
+  user         User?                @relation(fields: [userId], references: [id])
+  responses    AssessmentResponse[]
+}
+
+// Assessment Response model
+model AssessmentResponse {
+  id           String     @id @default(uuid())
+  assessmentId String
+  questionId   String
+  dimension    String
+  answer       Int        // 1-5 scale
+  notes        String?    // Optional context, max 500 chars
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  question   Question   @relation(fields: [questionId], references: [id])
+}
+
+// Question model
+model Question {
+  id             String   @id @default(uuid())
+  dimension      String
+  text           String
+  helpText       String
+  levelIndicator1 String  // Ad Hoc
+  levelIndicator2 String  // Developing
+  levelIndicator3 String  // Defined
+  levelIndicator4 String  // Managed
+  levelIndicator5 String  // Optimised
+  weight         Float    @default(1)
+  order          Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  responses AssessmentResponse[]
+}
+
+// Recommendation model
+model Recommendation {
+  id           String @id @default(uuid())
+  dimension    String
+  currentLevel Int    // When to show this recommendation
+  targetLevel  Int    // What this helps achieve
+  title        String
+  description  String
+  toolkitLink  String
+  priority     String // Critical, High, Medium, Low
+  effort       String // Quick Win, Moderate, Significant
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
